@@ -7,9 +7,10 @@ import cv2
 import numpy as np
 import logging
 from pathlib import Path
+import shutil
 
 # ========== НАСТROYKI ==========
-SOURCE_PATH = 'data/math_test/img6.jpg'                         # Путь к изображению с формулами
+SOURCE_PATH = 'data/math_test/img6.jpg'                 # Путь к изображению с формулами
 OUTPUT_DIR = 'data/cropped_lines'                       # Папка для сохранения вырезанных строк
 IMG_FORMAT = 'png'                                      # Формат изображений
 # Параметры для сегментации без YOLO
@@ -143,18 +144,15 @@ def create_latex_pdf(latex_code, output_file="formula.pdf"):
     subprocess.run(["pdflatex", "temp.tex"])
     os.rename("temp.pdf", output_file)
 
-def clear_output_directory(directory_path):
-    """Очищает все файлы в указанной директории, сохраняя саму директорию."""
+def remove_output_directory(directory_path):
+    """Удаляет указанную директорию и все её содержимое."""
     directory = Path(directory_path)
     if directory.exists() and directory.is_dir():
-        for item in directory.glob('*'):
-            try:
-                if item.is_file():
-                    item.unlink()
-                    logging.info(f'Удалён файл: {item}')
-            except Exception as e:
-                logging.error(f'Ошибка при удалении {item}: {str(e)}')
-        logging.info(f'Папка {directory} успешно очищена.')
+        try:
+            shutil.rmtree(directory)
+            logging.info(f'Папка {directory} успешно удалена.')
+        except Exception as e:
+            logging.error(f'Ошибка при удалении папки {directory}: {str(e)}')
     else:
         logging.warning(f'Папка {directory} не существует или не является директорией.')
 
@@ -204,7 +202,8 @@ def main():
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
-    clear_output_directory(OUTPUT_DIR)
+    # Удаление папки cropped_lines
+    remove_output_directory(OUTPUT_DIR)
 
 if __name__ == "__main__":
     main()
