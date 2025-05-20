@@ -16,16 +16,16 @@ import json
 
 
 # ========== НАСТРОЙКИ ==========
-MODEL_PATH = 'models/model.pt'
-SOURCE_PATH = 'data/my_test/img24.jpg'
-OUTPUT_DIR = 'data/cropped_boxes'
+MODEL_PATH = 'models/model.pt'                          # Модель сегментации строк
+SOURCE_PATH = 'data/my_test/img22.jpg'                  # Путь до изображения
+OUTPUT_DIR = 'data/cropped_boxes'                       # Папка куда сохраняются ббоксы
 CONF_THRESHOLD = 0.3                                    # Порог уверенности (0-1)
-OVERLAP_THRESHOLD = 0.9                                # Порог пересечения (50% площади каждого бокса)
+OVERLAP_THRESHOLD = 0.35                                # Порог пересечения (50% площади каждого бокса)
 IMG_FORMAT = 'png'                                      # Формат изображений (png/jpg)
-SCALE_COEFF =2                                         # Коэффициент растяжения
-SCALE_BBOX = 0.1                                       # Процент увеличения ббокса
-SPACE_THRESHOLD_COEFF = 0.0001
-MIN_SPACE_WIDTH = 0.015
+SCALE_COEFF = 2                                         # Коэффициент растяжения
+SCALE_BBOX = 0.01                                       # Процент увеличения ббокса
+SPACE_THRESHOLD_COEFF = 0.0025                          # Процент принятия пробела
+MIN_SPACE_WIDTH = 0.02                                  # Минимальная длинна пробела
 # ================================
 
 
@@ -314,19 +314,20 @@ def get_word_bboxes(img, x1, y1, x2, y2):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
     closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
 
+    # Берем только центральные строки для проекции
+    height = closed.shape[0]
+    center_start = height // 2 - 2
+    center_end = height // 2 + 10
+    center_region = closed[center_start:center_end, :]
+
     # Считаем горизонтальную проекцию
-    projection = np.sum(closed, axis=0)
-    # projection = cv2.medianBlur(projection.astype(np.uint8), 3)
+    projection = np.sum(center_region, axis=0)
+
+    # Нормализуем проекцию
+    projection = projection * (height / 12)
 
     # Находим пробелы (адаптивный порог: % от максимальной высоты строки)
-    height = y2 - y1
-    space_threshold = SPACE_THRESHOLD_COEFF * height * 255  # % от максимально возможной суммы
-    # median_projection = np.mean(projection[projection > 0])
-    # space_threshold = 0.3 * median_projection  # 10% от медианной интенсивности символов
-
-    # plt.plot(projection)
-    # plt.axhline(y=space_threshold, color='r')
-    # plt.show()
+    space_threshold = SPACE_THRESHOLD_COEFF * height * 255  # % от максимально возможной сум
 
     space_indices = np.where(projection < space_threshold)[0]
 
@@ -430,7 +431,7 @@ def sort_word_bboxes(word_bboxes, line_overlap_threshold=0.7):
 
 def main0():
     # Логирование
-    setup_logging()
+    # setup_logging()
 
     try:
         model = YOLO(MODEL_PATH)
@@ -529,6 +530,7 @@ def main0():
             annotated_path = output_dir / f"{source_filename}_annotated.{IMG_FORMAT}"
             cv2.imwrite(str(annotated_path), annotated_img)
             logging.info(f'Saved annotated: {annotated_path}')
+
 
 def main():
 
