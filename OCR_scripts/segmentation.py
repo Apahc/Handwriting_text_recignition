@@ -153,61 +153,80 @@ class ImageSegmenter:
 
         return result
 
-    def process_image(self, img_path: Path, output_dir: Path, img_format: str = 'png') -> None:
+    def process_image(self, img_input: Path | bytes, output_dir: Path, img_format: str = 'png',
+                      is_bytes: bool = False) -> None:
         """Обрабатывает одно изображение и сохраняет результаты"""
-        original_img = cv2.imread(str(img_path))
-        processed_img = self.preprocess_image(original_img, self.scale_coeff)
+        try:
+            if is_bytes:
+                # Обработка байтов
+                nparr = np.frombuffer(img_input, np.uint8)
+                original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                source_filename = "image_from_bytes"
+            else:
+                img_path = Path(img_input)
+                original_img = cv2.imread(str(img_path))
+                source_filename = img_path.stem
 
-        results = self.model.predict(source=processed_img, iou=0.2, agnostic_nms=True)
+            if original_img is None:
+                raise ValueError("Не удалось декодировать изображение из байтов")
 
-        for result in results:
-            annotated_img = original_img.copy()
-            source_filename = img_path.stem
+            processed_img = self.preprocess_image(original_img, self.scale_coeff)
 
-            boxes = [box for box in result.boxes if box.conf >= self.conf_threshold]
-            filtered_boxes = self.filter_boxes(boxes)
+            results = self.model.predict(source=processed_img, iou=0.2, agnostic_nms=True)
 
-            sorted_boxes = sorted(filtered_boxes,
-                                  key=lambda b: (
-                                      b.xyxy[0][1].item(),
-                                      b.xyxy[0][0].item()
-                                  ))
+            for result in results:
+                annotated_img = original_img.copy()
 
-            for i, box in enumerate(sorted_boxes):
-                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                class_id = int(box.cls[0].item())
-                class_name = self.model.names.get(class_id, 'unknown')
-                y1 //= self.scale_coeff
-                y2 //= self.scale_coeff
+                boxes = [box for box in result.boxes if box.conf >= self.conf_threshold]
+                filtered_boxes = self.filter_boxes(boxes)
 
-                word_bboxes = self.get_word_bboxes(annotated_img, x1, y1, x2, y2)
-                word_bboxes = self.sort_word_bboxes(word_bboxes)
+                sorted_boxes = sorted(filtered_boxes,
+                                      key=lambda b: (
+                                          b.xyxy[0][1].item(),
+                                          b.xyxy[0][0].item()
+                                      ))
 
-                for j, (x1, y1, x2, y2) in enumerate(word_bboxes):
-                    try:
-                        h, w = original_img.shape[:2]
-                        x1, y1 = max(0, x1), max(0, y1)
-                        x2, y2 = min(w, x2), min(h, y2)
+                for i, box in enumerate(sorted_boxes):
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                    class_id = int(box.cls[0].item())
+                    class_name = self.model.names.get(class_id, 'unknown')
+                    y1 //= self.scale_coeff
+                    y2 //= self.scale_coeff
 
-                        if x1 >= x2 or y1 >= y2:
-                            logging.warning(f"Invalid bbox {i}_{j} in {img_path}: {x1},{y1},{x2},{y2}")
-                            continue
+                    word_bboxes = self.get_word_bboxes(annotated_img, x1, y1, x2, y2)
+                    word_bboxes = self.sort_word_bboxes(word_bboxes)
 
-                        cropped_img = original_img[y1:y2, x1:x2]
-                        if cropped_img.size == 0:
-                            logging.warning(f"Empty crop in {img_path} for bbox {i}_{j}")
-                            continue
+                    for j, (x1, y1, x2, y2) in enumerate(word_bboxes):
+                        try:
+                            h, w = original_img.shape[:2]
+                            x1, y1 = max(0, x1), max(0, y1)
+                            x2, y2 = min(w, x2), min(h, y2)
 
-                        output_name = f"{source_filename}_{class_name}_{i}_{j}_conf{box.conf[0]:.2f}.{img_format}"
-                        output_path = output_dir / output_name
+                            if x1 >= x2 or y1 >= y2:
+                                logging.warning(f"Invalid bbox {i}_{j} in {img_input}: {x1},{y1},{x2},{y2}")
+                                continue
 
-                        cv2.imwrite(str(output_path), cropped_img,
-                                    [int(cv2.IMWRITE_JPEG_QUALITY), 100] if img_format == 'jpg' else [])
-                        logging.info(f"Saved word {i}_{j} to {output_path}")
+                            cropped_img = original_img[y1:y2, x1:x2]
+                            if cropped_img.size == 0:
+                                logging.warning(f"Empty crop in {img_input} for bbox {i}_{j}")
+                                continue
 
-                    except Exception as e:
-                        logging.error(f'Error processing box {i}_{j} in {img_path}: {str(e)}')
+                            output_name = f"{source_filename}_{class_name}_{i}_{j}_conf{box.conf[0]:.2f}.{img_format}"
+                            output_path = output_dir / output_name
 
-            annotated_path = f"./data/image_bboxes/{source_filename}_annotated.{img_format}"
-            cv2.imwrite(str(annotated_path), annotated_img)
-            logging.info(f'Saved annotated: {annotated_path}')
+                            cv2.imwrite(str(output_path), cropped_img,
+                                        [int(cv2.IMWRITE_JPEG_QUALITY), 100] if img_format == 'jpg' else [])
+                            logging.info(f"Saved word {i}_{j} to {output_path}")
+
+                        except Exception as e:
+                            logging.error(f'Error processing box {i}_{j} in {img_input}: {str(e)}')
+
+                annotated_path = f"./data/image_bboxes/{source_filename}_annotated.{img_format}"
+                cv2.imwrite(str(annotated_path), annotated_img)
+                logging.info(f'Saved annotated: {annotated_path}')
+        except Exception as e:
+            if is_bytes:
+                logging.error(f'Error processing image bytes: {str(e)}')
+            else:
+                logging.error(f'Error processing image path: {str(e)}')
+            raise
