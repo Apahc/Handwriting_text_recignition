@@ -32,36 +32,45 @@ def setup_logging():
     )
 
 
-def get_bboxes():
+def get_image_bytes() -> bytes:
+    """Пример получения байтов изображения"""
+    # Вариант 1: Из файла (для теста)
+    with open('data/my_test/img22.jpg', 'rb') as f:
+        return f.read()
+
+    # Вариант 2: Из API/сети
+    # import requests
+    # response = requests.get('http://example.com/image.jpg')
+    # return response.content
+
+    # Вариант 3: Из интерфейса (например, загрузка через Flask)
+    # from flask import request
+    # return request.files['image'].read()
+
+
+def get_bboxes(is_bytes: bool = False):
     # Логирование
     setup_logging()
 
-    segmenter = ImageSegmenter(
-        model_path=MODEL_PATH,
-        conf_threshold=CONF_THRESHOLD,
-        overlap_threshold=OVERLAP_THRESHOLD,
-        scale_coeff=SCALE_COEFF,
-        scale_bbox=SCALE_BBOX,
-        space_threshold_coeff=SPACE_THRESHOLD_COEFF,
-        min_space_width=MIN_SPACE_WIDTH
-    )
+    segmenter = ImageSegmenter(MODEL_PATH)
 
     # Создаем выходную директорию
     output_dir = Path(OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Обрабатываем исходный путь
-    source_path = Path(SOURCE_PATH)
-    if not source_path.exists():
-        logging.error(f'Path {source_path} does not exist')
-        return
+    if is_bytes:
+        # Вариант с байтами
+        image_bytes = get_image_bytes()     # Функция для получения байтов
+        segmenter.process_image(image_bytes, output_dir, IMG_FORMAT, is_bytes)
+    else:
+        # Вариант с файлом
+        source_path = Path(SOURCE_PATH)
+        if not source_path.exists():
+            logging.error(f'Path {source_path} does not exist')
+            return
 
-    if source_path.is_file():
-        segmenter.process_image(source_path, output_dir, IMG_FORMAT)
-    elif source_path.is_dir():
-        for img_path in source_path.glob('*.*'):
-            if img_path.suffix.lower()[1:] in ['jpg', 'jpeg', 'png']:
-                segmenter.process_image(img_path, output_dir, IMG_FORMAT)
+        segmenter.process_image(source_path, output_dir, IMG_FORMAT, is_bytes)
 
 
 def recognition_text():
@@ -107,7 +116,11 @@ def main():
     start_time = time.time()
 
     # 1. Получение ббоксов
-    get_bboxes()
+    # Вариант 1: Загрузка из файла
+    # get_bboxes(is_bytes=False)
+
+    # Вариант 2: Работа с байтами
+    get_bboxes(is_bytes=True)
 
     # 2. Распознавание текста
     res_text = recognition_text()
