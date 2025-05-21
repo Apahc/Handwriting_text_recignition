@@ -8,11 +8,12 @@ import logging
 from OCR_scripts.segmentation import ImageSegmenter
 from OCR_scripts.recognition import OCRPredictor
 from OCR_scripts.config import Config
+from OCR_scripts.answer_grader import AnswerGrader
 
 
 # ========== НАСТРОЙКИ СЕГМЕНТАЦИИ ==========
-MODEL_PATH = 'models/model.pt'  # Модель сегментации строк
-SOURCE_PATH = 'data/my_test/img22.jpg'  # Путь до изображения
+MODEL_PATH = 'models/model.pt'                          # Модель сегментации строк
+SOURCE_PATH = 'data/my_test/img22.jpg'                  # Путь до изображения
 OUTPUT_DIR = 'data/cropped_boxes'                       # Папка куда сохраняются ббоксы
 CONF_THRESHOLD = 0.3                                    # Порог уверенности (0-1)
 OVERLAP_THRESHOLD = 0.35                                # Порог пересечения (50% площади каждого бокса)
@@ -75,18 +76,44 @@ def recognition_text():
 
     # Сохранение и вывод результатов
     predictor.save_results_to_json(predictions, output_file)
-    predictor.print_results(predictions)
+    return predictor.get_and_print_results(predictions)
+
+
+def evaluate_answers(student_answer: str) -> dict:
+    grader = AnswerGrader()
+
+    reference_answer = grader.get_reference_answer()
+
+    is_correct, match_type = grader.grade_answer(student_answer, reference_answer)
+    answer = {
+        "is_correct": is_correct,
+        "match_type": match_type,
+        "student_answer": student_answer,
+        "reference_answer": reference_answer
+    }
+
+    # Вывод результатов
+    print("\nРезультаты оценки:")
+    print(f"\nОтвет студента: {answer['student_answer']}")
+    print(f"\nЭталонный ответ: {answer['reference_answer']}")
+    print(f"\nРезультат: {'Правильно' if answer['is_correct'] else 'Неправильно'}")
+    print(f"\nТип сравнения: {answer['match_type']}")
+
+    return answer
 
 
 def main():
     # Начало отсчёта времени
     start_time = time.time()
 
-    # Получение ббоксов
+    # 1. Получение ббоксов
     get_bboxes()
 
-    # Распознавание текста
-    recognition_text()
+    # 2. Распознавание текста
+    res_text = recognition_text()
+
+    # 3. Оценка ответа
+    evaluate_answers(res_text)
 
     # Конец отсчёта времени
     end_time = time.time()

@@ -77,8 +77,13 @@ def get_val_transforms(height: int, width: int) -> torchvision.transforms.Compos
     ])
 
 
-def get_resnet34_backbone(pretrained: bool = True) -> nn.Sequential:
-    m = torchvision.models.resnet34(pretrained=pretrained)
+def get_resnet34_backbone(weights: bool = True) -> nn.Sequential:
+    # Получаем веса для ResNet34
+    weights = torchvision.models.ResNet34_Weights.DEFAULT if weights else None
+
+    # Загружаем модель с указанными весами
+    m = torchvision.models.resnet34(weights=weights)
+
     input_conv = nn.Conv2d(3, 64, 7, 1, 3)
     blocks = [input_conv, m.bn1, m.relu, m.maxpool, m.layer1, m.layer2, m.layer3]
     return nn.Sequential(*blocks)
@@ -100,7 +105,7 @@ class CRNN(nn.Module):
     def __init__(self, number_class_symbols: int, time_feature_count: int = 256, lstm_hidden: int = 256,
                  lstm_len: int = 2):
         super().__init__()
-        self.feature_extractor = get_resnet34_backbone(pretrained=True)
+        self.feature_extractor = get_resnet34_backbone(weights=True)
         self.avg_pool = nn.AdaptiveAvgPool2d((time_feature_count, time_feature_count))
         self.bilstm = BiLSTM(time_feature_count, lstm_hidden, lstm_len)
         self.classifier = nn.Sequential(
@@ -232,7 +237,10 @@ class OCRPredictor:
             json.dump(dict(sorted_predictions), f, ensure_ascii=False, indent=2)
 
     @staticmethod
-    def print_results(predictions: Dict[str, str]) -> None:
+    def get_and_print_results(predictions: Dict[str, str]) -> str:
+        res_str = []
+        curr_line = []
+
         sorted_predictions = OCRPredictor.sort_predictions(predictions)
 
         print("\nРезультаты распознавания (отсортированные по строкам и словам):")
@@ -248,10 +256,15 @@ class OCRPredictor:
                     if line_num != current_line:
                         if current_line is not None:
                             print()
+                            res_str.append(" ".join(curr_line))
+                            curr_line.clear()
                         print(f"Строка {line_num}: ", end="")
                         current_line = line_num
+                    curr_line.append(text)
                     print(text, end=" ")
             except (ValueError, IndexError):
                 continue
 
         print("\n" + "=" * 50)
+        res_str.append(" ".join(curr_line))
+        return "\n".join(res_str)
