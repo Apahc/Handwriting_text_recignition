@@ -10,7 +10,7 @@ from OCR_scripts.answer_grader import AnswerGrader
 
 # ========== НАСТРОЙКИ СЕГМЕНТАЦИИ ==========
 MODEL_PATH = 'models/model.pt'                          # Модель сегментации строк
-SOURCE_PATH = 'data/my_test/img20.jpg'                  # Путь до изображения
+SOURCE_PATH = 'data/my_test/img22.jpg'                  # Путь до изображения
 OUTPUT_DIR = 'data/cropped_boxes'                       # Папка куда сохраняются ббоксы
 CONF_THRESHOLD = 0.3                                    # Порог уверенности (0-1)
 OVERLAP_THRESHOLD = 0.35                                # Порог пересечения (50% площади каждого бокса)
