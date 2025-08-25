@@ -40,7 +40,7 @@ def process_formulas(is_bytes=False):
     """Основная функция обработки"""
     start_time = time.time()
     setup_logging()
-
+    recognizer = FormulaRecognizer()
     try:
         recognizer = FormulaRecognizer()
 
@@ -102,10 +102,10 @@ def process_formulas(is_bytes=False):
 
 def main():
     # Вариант 1: Работа с файлом
-    # result = process_formulas(is_bytes=False)
+    result = process_formulas(is_bytes=False)
 
     # Вариант 2: Работа с байтами
-    result = process_formulas(is_bytes=True)
+    #result = process_formulas(is_bytes=True)
 
     if result:
         print("\nИтоговый LaTeX код:")
